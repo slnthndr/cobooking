@@ -1,28 +1,46 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/riandyrn/otelchi"
 
 	"github.com/slnt/cobooking/api-gateway/internal/config"
 	customMiddleware "github.com/slnt/cobooking/api-gateway/internal/middleware"
 	"github.com/slnt/cobooking/api-gateway/internal/proxy"
+	"github.com/slnt/cobooking/api-gateway/internal/tracing"
 )
 
 func main() {
 	cfg := config.LoadConfig()
 
+	// === ИНИЦИАЛИЗАЦИЯ JAEGER TRACING ===
+	tp, err := tracing.InitTracer("api-gateway", "jaeger:4318") // "jaeger" - имя контейнера
+	if err == nil {
+		defer tp.Shutdown(context.Background())
+		log.Println("OpenTelemetry Tracing is enabled")
+	}
+
+	// 1. Создаем роутер (ОДИН РАЗ!)
 	r := chi.NewRouter()
+
+	// 2. Добавляем Middleware для Трассировки (Jaeger)
+	r.Use(otelchi.Middleware("api-gateway", otelchi.WithChiRoutes(r)))
+
+	// 3. Стандартные Middleware и Метрики (Prometheus)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(customMiddleware.PrometheusMetrics)
 
-	// === OBSERVABILITY ===
+	// === 4. OBSERVABILITY & HEALTH CHECKS ===
 	r.Handle("/metrics", promhttp.Handler())
+
+	// ... дальше всё остается как было (r.Get("/health"... и настройка прокси) ...
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -36,9 +54,9 @@ func main() {
 
 	// === PROXIES ===
 	authProxy := proxy.New(cfg.MsAuthURL)
-	placesProxy := proxy.New("http://localhost:8082")
-	bookingProxy := proxy.New("http://localhost:8083")
-	paymentsProxy := proxy.New("http://localhost:8085")
+	placesProxy := proxy.New("http://ms-places:8082")
+	bookingProxy := proxy.New("http://ms-booking:8083")
+	paymentsProxy := proxy.New("http://ms-payments:8085")
 
 	// === PUBLIC ROUTES ===
 	r.Group(func(r chi.Router) {
