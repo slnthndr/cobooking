@@ -1,9 +1,5 @@
-version: '3.8'
-
 services:
-  # ==========================================
-  # 1. ИНФРАСТРУКТУРА (БД, Кэш, Брокер, S3, Метрики)
-  # ==========================================
+
   postgres:
     image: postgres:15-alpine
     container_name: cobooking-postgres
@@ -17,6 +13,11 @@ services:
       - ./pg_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -24,6 +25,11 @@ services:
     ports:
       - "6379:6379"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -35,6 +41,11 @@ services:
       - "5672:5672"
       - "15672:15672"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
 
   minio:
     image: minio/minio:latest
@@ -65,47 +76,36 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_started
     restart: unless-stopped
 
-  # ==========================================
-  # 2. НАШИ GO МИКРОСЕРВИСЫ
-  # ==========================================
-  api-gateway:
-    build: ./api-gateway
-    container_name: api-gateway
-    ports:
-      - "8080:8080" # Открываем наружу только Gateway!
-    environment:
-      PORT: "8080"
-      REDIS_ADDR: "redis:6379"
-      JWT_SECRET: "MY_SUPER_SECRET_KEY_123"
-      MS_AUTH_URL: "http://ms-auth:8081"
-    depends_on:
-      - redis
-      - ms-auth
-      - ms-places
-      - ms-booking
-      - ms-payments
+  # ==========================
+  # MICROSERVICES
+  # ==========================
 
   ms-auth:
     build: ./ms-auth
     container_name: ms-auth
+    restart: always
     environment:
       PORT: "8081"
       POSTGRES_URL: "postgres://admin:password@postgres:5432/cobooking?sslmode=disable"
       REDIS_ADDR: "redis:6379"
       JWT_SECRET: "MY_SUPER_SECRET_KEY_123"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   ms-places:
     build: ./ms-places
     container_name: ms-places
+    restart: always
     environment:
       PORT: "8082"
       POSTGRES_URL: "postgres://admin:password@postgres:5432/cobooking?sslmode=disable"
@@ -115,39 +115,75 @@ services:
       MINIO_PASSWORD: "password123"
       MINIO_BUCKET: "workspaces"
     depends_on:
-      - postgres
-      - redis
-      - minio
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
 
   ms-booking:
     build: ./ms-booking
     container_name: ms-booking
+    restart: always
     environment:
       PORT: "8083"
       POSTGRES_URL: "postgres://admin:password@postgres:5432/cobooking?sslmode=disable"
       RABBITMQ_URL: "amqp://admin:password@rabbitmq:5672/"
     depends_on:
-      - postgres
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   ms-notifications:
     build: ./ms-notifications
     container_name: ms-notifications
+    restart: always
     environment:
       PORT: "8084"
       POSTGRES_URL: "postgres://admin:password@postgres:5432/cobooking?sslmode=disable"
       RABBITMQ_URL: "amqp://admin:password@rabbitmq:5672/"
     depends_on:
-      - postgres
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   ms-payments:
     build: ./ms-payments
     container_name: ms-payments
+    restart: always
     environment:
       PORT: "8085"
       POSTGRES_URL: "postgres://admin:password@postgres:5432/cobooking?sslmode=disable"
       RABBITMQ_URL: "amqp://admin:password@rabbitmq:5672/"
     depends_on:
-      - postgres
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      REDIS_ADDR: "redis:6379"
+      JWT_SECRET: "MY_SUPER_SECRET_KEY_123"
+      MS_AUTH_URL: "http://ms-auth:8081"
+      MS_PLACES_URL: "http://ms-places:8082"
+      MS_BOOKING_URL: "http://ms-booking:8083"
+      MS_PAYMENTS_URL: "http://ms-payments:8085"
+    depends_on:
+      ms-auth:
+        condition: service_started
+      ms-places:
+        condition: service_started
+      ms-booking:
+        condition: service_started
+      ms-payments:
+        condition: service_started
