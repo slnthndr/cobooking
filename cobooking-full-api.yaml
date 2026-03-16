@@ -1,0 +1,326 @@
+openapi: 3.0.0
+info:
+  title: CoBooking Full API
+  version: 1.0.0
+  description: Полное API сервиса онлайн-бронирования рабочих мест
+servers:
+  - url: http://localhost:8080/api/v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
+paths:
+  # === USERS ===
+  /users:
+    post:
+      tags: [Users]
+      summary: Регистрация
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName: { type: string, example: "Ivan" }
+                lastName: { type: string, example: "Ivanov" }
+                email: { type: string, example: "user@gmail.com" }
+                password: { type: string, example: "randompassword" }
+                address: { type: string, example: "Country, City, Street, House" }
+      responses:
+        '201': { description: Created }
+        '400': { description: Bad Request }
+        '409': { description: Conflict }
+
+  /users/{userId}:
+    delete:
+      tags: [Users]
+      summary: Удаление аккаунта
+      parameters: [{ in: path, name: userId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK }, '404': { description: Not Found } }
+    get:
+      tags: [Users]
+      summary: Получение информации о пользователе
+      parameters: [{ in: path, name: userId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+
+  # === AUTH ===
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, example: "user@gmail.com" }
+                password: { type: string, example: "randompassword" }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '429': { description: Too Many Requests }
+
+  /auth/check:
+    get:
+      tags: [Auth]
+      summary: Проверка авторизации
+      responses: { '200': { description: OK } }
+
+  /auth/google:
+    post:
+      tags: [Auth]
+      summary: Авторизация через Google
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, properties: { code: { type: string } } } } } }
+      responses: { '200': { description: OK } }
+
+  /auth/vk:
+    post:
+      tags: [Auth]
+      summary: Авторизация через VK
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, properties: { code: { type: string } } } } } }
+      responses: { '200': { description: OK } }
+
+  /refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление access токена
+      responses: { '200': { description: OK } }
+
+  # === PAYMENTS ===
+  /payments/pay:
+    post:
+      tags: [Payments]
+      summary: Создание Платежа
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bookingId: { type: integer, example: 22 }
+                paymentMethod: { type: string, example: "card" }
+                amount: { type: number, example: 1299.99 }
+                currency: { type: string, example: "RUB" }
+      responses: { '201': { description: Created } }
+
+  /payments/webhook:
+    post:
+      tags: [Payments]
+      summary: Подтверждение платежа
+      security: []
+      parameters: [{ in: header, name: X-Signature, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: OK } }
+
+  /payments/{paymentId}:
+    delete:
+      tags: [Payments]
+      summary: Отмена платежа
+      parameters: [{ in: path, name: paymentId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+    get:
+      tags: [Payments]
+      summary: Получить статус платежа
+      parameters: [{ in: path, name: paymentId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+
+  /payments:
+    get:
+      tags: [Payments]
+      summary: История платежей пользователя
+      parameters:
+        - { in: query, name: userId, schema: { type: integer } }
+        - { in: query, name: page, schema: { type: integer } }
+        - { in: query, name: limit, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+
+  # === BOOKINGS ===
+  /bookings/{placeId}:
+    post:
+      tags: [Bookings]
+      summary: Бронирование рабочего места
+      parameters: [{ in: path, name: placeId, required: true, schema: { type: integer } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bookingStartTime: { type: string, example: "2026-03-02T14:30:00Z" }
+                bookingEndTime: { type: string, example: "2026-03-02T16:30:00Z" }
+      responses: { '201': { description: Created } }
+
+  /bookings/{bookingId}:
+    patch:
+      tags: [Bookings]
+      summary: Отмена брони
+      parameters: [{ in: path, name: bookingId, required: true, schema: { type: integer } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { bookingStatus: { type: string, example: "canceled" } } } } } }
+      responses: { '200': { description: OK } }
+    get:
+      tags: [Bookings]
+      summary: Получение информации о конкретной брони
+      parameters: [{ in: path, name: bookingId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: Получение списка броней
+      parameters:
+        - { in: query, name: bookingStatus, schema: { type: string } }
+        - { in: query, name: page, schema: { type: integer } }
+        - { in: query, name: limit, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+
+  # === REVIEWS ===
+  /reviews/{placeId}:
+    post:
+      tags: [Reviews]
+      summary: Написание нового отзыва
+      parameters: [{ in: path, name: placeId, required: true, schema: { type: integer } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { rating: { type: integer }, comment: { type: string } } } } } }
+      responses: { '201': { description: Created } }
+
+  /reviews/{reviewId}:
+    delete:
+      tags: [Reviews]
+      summary: Удаление отзыва
+      parameters: [{ in: path, name: reviewId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+
+  /places/{placeId}/reviews:
+    get:
+      tags: [Reviews]
+      summary: Получение отзывов о месте
+      parameters:
+        - { in: path, name: placeId, required: true, schema: { type: integer } }
+        - { in: query, name: page, schema: { type: integer } }
+        - { in: query, name: limit, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+
+  # === PLACES ===
+  /places/{placeId}:
+    get:
+      tags: [Places]
+      summary: Получение информации о рабочем месте
+      parameters: [{ in: path, name: placeId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+    patch:
+      tags: [Places]
+      summary: Обновление информации о рабочем месте
+      parameters: [{ in: path, name: placeId, required: true, schema: { type: integer } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { placeDescription: { type: string } } } } } }
+      responses: { '200': { description: OK } }
+
+  /search:
+    get:
+      tags: [Places]
+      summary: Поиск рабочего места
+      security: []
+      parameters:
+        - { in: query, name: country, schema: { type: string } }
+        - { in: query, name: city, schema: { type: string } }
+        - { in: query, name: date, schema: { type: string } }
+        - { in: query, name: page, schema: { type: integer } }
+        - { in: query, name: limit, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+
+  # === FAVORITES ===
+  /me/favorites:
+    post:
+      tags: [Favorites]
+      summary: Добавить место в избранное
+      requestBody: { content: { application/json: { schema: { type: object, properties: { placeId: { type: integer } } } } } }
+      responses: { '200': { description: OK } }
+    get:
+      tags: [Favorites]
+      summary: Получить список избранного
+      parameters:
+        - { in: query, name: page, schema: { type: integer } }
+        - { in: query, name: limit, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+
+  /me/favorites/{placeId}:
+    delete:
+      tags: [Favorites]
+      summary: Убрать место из избранного
+      parameters: [{ in: path, name: placeId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+
+  # === NOTIFICATIONS ===
+  /notification/{id}:
+    get:
+      tags: [Notifications]
+      summary: Информация об уведомлении
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+
+  /notifications/settings:
+    patch:
+      tags: [Notifications]
+      summary: Обновление настроек уведомлений
+      requestBody: { content: { application/json: { schema: { type: object, properties: { emailNotifications: { type: boolean } } } } } }
+      responses: { '200': { description: OK } }
+
+  # === ANALYTICS ===
+  /analytics/{placeId}:
+    get:
+      tags: [Analytics]
+      summary: Получить логи рабочего места
+      parameters:
+        - { in: path, name: placeId, required: true, schema: { type: integer } }
+        - { in: query, name: from, schema: { type: string } }
+        - { in: query, name: to, schema: { type: string } }
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Analytics]
+      summary: Добавление события в логи
+      parameters: [{ in: path, name: placeId, required: true, schema: { type: integer } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventType: { type: string }
+                bookingId: { type: integer }
+                userId: { type: integer }
+                timestamp: { type: string }
+      responses: { '201': { description: Created } }
+
+  # === REFUNDS ===
+  /refunds:
+    post:
+      tags: [Refunds]
+      summary: Создать заявку на возврат
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paymentId: { type: integer }
+                reason: { type: string }
+      responses: { '201': { description: Created } }
+
+  /refunds/{refundId}:
+    get:
+      tags: [Refunds]
+      summary: Получение информации о возврате
+      parameters: [{ in: path, name: refundId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Refunds]
+      summary: Отмена возврата
+      parameters: [{ in: path, name: refundId, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
