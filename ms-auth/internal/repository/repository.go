@@ -26,7 +26,7 @@ func (r *userRepo) Create(ctx context.Context, u *domain.User) error {
 		INSERT INTO users (first_name, last_name, email, password_hash) 
 		VALUES ($1, $2, $3, $4) 
 		RETURNING user_id, created_at`
-	
+
 	err := r.db.QueryRow(ctx, query, u.FirstName, u.LastName, u.Email, u.PasswordHash).Scan(&u.ID, &u.CreatedAt)
 	if err != nil {
 		return err // TODO: Обработать ошибку уникальности email (CONFLICT)
@@ -36,13 +36,20 @@ func (r *userRepo) Create(ctx context.Context, u *domain.User) error {
 
 func (r *userRepo) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	query := `SELECT user_id, first_name, last_name, email, password_hash FROM users WHERE email = $1`
-	
+
 	u := &domain.User{}
 	err := r.db.QueryRow(ctx, query, email).Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.PasswordHash)
 	if err == pgx.ErrNoRows {
 		return nil, fmt.Errorf("user not found")
 	}
 	return u, err
+}
+
+// Вставь эту функцию в конец секции POSTGRESQL:
+func (r *userRepo) Delete(ctx context.Context, userID int) error {
+	query := `DELETE FROM users WHERE user_id = $1`
+	_, err := r.db.Exec(ctx, query, userID)
+	return err
 }
 
 // === REDIS: TokenRepository ===

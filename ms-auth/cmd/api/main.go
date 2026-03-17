@@ -49,7 +49,7 @@ func main() {
 	})
 
 	// Подключаем хэндлеры
-	delivery.NewAuthHandler(r, authService)
+	delivery.NewAuthHandler(r, &authService)
 
 	log.Printf("Starting MS Auth on port %s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {

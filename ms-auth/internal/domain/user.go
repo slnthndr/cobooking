@@ -37,6 +37,7 @@ type TokenPair struct {
 type UserRepository interface {
 	Create(ctx context.Context, user *User) error
 	GetByEmail(ctx context.Context, email string) (*User, error)
+	Delete(ctx context.Context, userID int) error
 }
 
 type TokenRepository interface {
@@ -46,4 +47,5 @@ type TokenRepository interface {
 type AuthService interface {
 	Register(ctx context.Context, req RegisterRequest) (*User, error)
 	Login(ctx context.Context, req LoginRequest) (*TokenPair, error)
+	DeleteUser(ctx context.Context, userID int) error
 }

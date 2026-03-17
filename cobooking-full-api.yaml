@@ -11,6 +11,44 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemes:
+    UserRegistration: # Создаем переиспользуемую модель
+        type: object
+        required: [firstName, email, password] # Указываем обязательные поля
+        properties:
+          firstName: { type: string, example: "Ivan" }
+          lastName: { type: string, example: "Ivanov" }
+          email: { type: string, format: email, example: "user@gmail.com" }
+          password: { type: string, example: "randompassword" }
+    Error:
+        type: object
+        properties:
+          code: { type: string }
+          message: { type: string }
+    Payment:
+      type: object
+      properties:
+        bookingId: { type: integer, example: 22 }
+        paymentMethod: { type: string, example: "card" }
+        amount: { type: number, example: 1299.99 }
+        currency: { type: string, example: "RUB" }
+    BookingRequest:
+      type: object
+      properties:
+        bookingStartTime: { type: string, format: datetime, example: "2026-03-02T14:30:00Z" }
+        bookingEndTime: { type: string, format: datetime, example: "2026-03-02T16:30:00Z" }
+    EventLoging:
+      type: object
+      properties:
+        eventType: { type: string }
+        bookingId: { type: integer }
+        userId: { type: integer }
+        timestamp: { type: string }
+    Refund:
+      type: object
+      properties:
+        paymentId: { type: integer }
+        reason: { type: string }
 security:
   - bearerAuth: []
 paths:
@@ -24,16 +62,15 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                firstName: { type: string, example: "Ivan" }
-                lastName: { type: string, example: "Ivanov" }
-                email: { type: string, example: "user@gmail.com" }
-                password: { type: string, example: "randompassword" }
-                address: { type: string, example: "Country, City, Street, House" }
+              $ref: '#/components/schemes/UserRegistration' 
       responses:
         '201': { description: Created }
-        '400': { description: Bad Request }
+        '400': 
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref:#/components/schemes/Error'
         '409': { description: Conflict }
 
   /users/{userId}:
@@ -104,12 +141,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                bookingId: { type: integer, example: 22 }
-                paymentMethod: { type: string, example: "card" }
-                amount: { type: number, example: 1299.99 }
-                currency: { type: string, example: "RUB" }
+            $ref: '#/components/schemes/Payment'
       responses: { '201': { description: Created } }
 
   /payments/webhook:
@@ -153,10 +185,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                bookingStartTime: { type: string, example: "2026-03-02T14:30:00Z" }
-                bookingEndTime: { type: string, example: "2026-03-02T16:30:00Z" }
+              $ref: '#/components/schemes/BookingRequest'
       responses: { '201': { description: Created } }
 
   /bookings/{bookingId}:
@@ -290,12 +319,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                eventType: { type: string }
-                bookingId: { type: integer }
-                userId: { type: integer }
-                timestamp: { type: string }
+              $ref: '#components/schemes/EventLoging'
       responses: { '201': { description: Created } }
 
   # === REFUNDS ===
@@ -307,10 +331,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                paymentId: { type: integer }
-                reason: { type: string }
+              $ref: '#components/schemes/Refund'
       responses: { '201': { description: Created } }
 
   /refunds/{refundId}:

@@ -10,17 +10,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type authService struct {
+type AuthService struct {
 	userRepo  domain.UserRepository
 	tokenRepo domain.TokenRepository
 	jwtSecret string
 }
 
-func NewAuthService(userRepo domain.UserRepository, tokenRepo domain.TokenRepository, secret string) domain.AuthService {
-	return &authService{userRepo: userRepo, tokenRepo: tokenRepo, jwtSecret: secret}
+func NewAuthService(userRepo domain.UserRepository, tokenRepo domain.TokenRepository, secret string) AuthService {
+	return AuthService{userRepo: userRepo, tokenRepo: tokenRepo, jwtSecret: secret}
 }
 
-func (s *authService) Register(ctx context.Context, req domain.RegisterRequest) (*domain.User, error) {
+func (s *AuthService) Register(ctx context.Context, req domain.RegisterRequest) (*domain.User, error) {
 	// 1. Хэшируем пароль
 	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -43,7 +43,11 @@ func (s *authService) Register(ctx context.Context, req domain.RegisterRequest) 
 	return user, nil
 }
 
-func (s *authService) Login(ctx context.Context, req domain.LoginRequest) (*domain.TokenPair, error) {
+func (s *AuthService) DeleteUser(ctx context.Context, userID int) error {
+	return s.userRepo.Delete(ctx, userID)
+}
+
+func (s *AuthService) Login(ctx context.Context, req domain.LoginRequest) (*domain.TokenPair, error) {
 	// 1. Ищем пользователя
 	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
